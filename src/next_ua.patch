@@ -1,0 +1,91 @@
+diff --git a/include/baresip.h b/include/baresip.h
+index ce9f5c78..a2643c75 100644
+--- a/include/baresip.h
++++ b/include/baresip.h
+@@ -875,6 +875,7 @@ int  uag_enable_transport(enum sip_transp tp, bool en);
+ struct ua   *uag_find(const struct pl *cuser);
+ struct ua   *uag_find_msg(const struct sip_msg *msg);
+ struct ua   *uag_find_aor(const char *aor);
++struct ua   *uag_find_last(void);
+ struct ua   *uag_find_param(const char *name, const char *val);
+ struct ua   *uag_find_requri(const char *requri);
+ struct sip  *uag_sip(void);
+diff --git a/modules/menu/static_menu.c b/modules/menu/static_menu.c
+index cc720ea5..c6445ef6 100644
+--- a/modules/menu/static_menu.c
++++ b/modules/menu/static_menu.c
+@@ -1020,6 +1020,34 @@ static int cmd_ua_delete_all(struct re_printf *pf, void *unused)
+ }
+ 
+ 
++static int cmd_ua_next(struct re_printf *pf, void *unused)
++{
++	struct le *le;
++	struct ua *ua = NULL;
++
++	(void)unused;
++
++	ua = uag_find_last();
++
++	if (!ua) {
++		(void)re_hprintf(pf, "could not find next User-Agent\n");
++		return ENOENT;
++	}
++
++	(void)re_hprintf(pf, "ua: %s\n", account_aor(ua_account(ua)));
++
++	ua_raise(ua);
++
++	le = list_tail(ua_calls(ua));
++	if (le)
++		menu_selcall(le->data);
++
++	menu_update_callstatus(uag_call_count());
++
++	return 0;
++}
++
++
+ static int cmd_ua_find(struct re_printf *pf, void *arg)
+ {
+ 	const struct cmd_arg *carg = arg;
+@@ -1344,6 +1372,7 @@ static const struct cmd cmdv[] = {
+ {"uadel",     0,    CMD_PRM, "Delete User-Agent",       cmd_ua_delete        },
+ {"uadelall",  0,    CMD_PRM, "Delete all User-Agents",  cmd_ua_delete_all    },
+ {"uafind",    0,    CMD_PRM, "Find User-Agent <aor>",   cmd_ua_find          },
++{"uanext",    'N',        0, "Next User-Agent",         cmd_ua_next          },
+ {"uanew",     0,    CMD_PRM, "Create User-Agent",       create_ua            },
+ {"uareg",     0,    CMD_PRM, "UA register <regint> [index]", cmd_uareg       },
+ {"uaaddheader", 0,  CMD_PRM, "Add custom header to UA",      cmd_addheader   },
+diff --git a/src/uag.c b/src/uag.c
+index cd6a1e45..dcda1c23 100644
+--- a/src/uag.c
++++ b/src/uag.c
+@@ -945,6 +945,27 @@ struct ua *uag_find_msg(const struct sip_msg *msg)
+ }
+ 
+ 
++/**
++ * Find a last User-Agent (UA)
++ *
++ * @return User-Agent (UA) if found, otherwise NULL
++ */
++struct ua *uag_find_last(void)
++{
++	struct le *le;
++
++	le = uag.ual.tail;
++	if (le) {
++		struct ua *ua = le->data;
++		if (ua) {
++			return ua;
++		}
++	}
++
++	return NULL;
++}
++
++
+ /**
+  * Find a User-Agent (UA) from an Address-of-Record (AOR)
+  *
